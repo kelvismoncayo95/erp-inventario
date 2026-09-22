@@ -11,7 +11,7 @@ Endpoints de autenticación y gestión de usuarios.
 - DELETE /auth/usuarios/{id}  → Desactivar usuario (solo admin)
 - POST /auth/usuarios/{id}/activar → Reactivar usuario (solo admin)
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
@@ -27,6 +27,9 @@ from app.schemas.usuario import (
 )
 from app.core.security import hashear_password, verificar_password, crear_token_acceso
 from app.core.dependencies import get_current_user, requerir_admin
+
+# Import diferido para evitar circular import
+from app.core.rate_limit import limiter
 
 
 router = APIRouter(
@@ -76,7 +79,9 @@ def registrar_usuario(usuario: UsuarioRegistrar, db: Session = Depends(get_db)):
 # POST /auth/login - Iniciar sesión
 # ============================================
 @router.post("/login", response_model=Token)
-def login(
+@limiter.limit("5/minute")
+async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):

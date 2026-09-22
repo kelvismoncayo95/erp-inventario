@@ -9,7 +9,6 @@
 </head>
 <body>
 
-<!-- ============ LOGIN ============ -->
 <div id="vista-login" class="login-view">
   <div class="login-card">
     <div class="login-logo">📦</div>
@@ -30,9 +29,7 @@
   </div>
 </div>
 
-<!-- ============ APP ============ -->
 <div id="vista-app" class="app-view">
-
   <header class="app-header">
     <div class="header-inner">
       <div class="brand">
@@ -43,6 +40,8 @@
         <button class="nav-tab active" data-tab="productos"><span>📋</span> Productos</button>
         <button class="nav-tab" data-tab="nuevo"><span>➕</span> Nuevo</button>
         <button class="nav-tab" data-tab="ventas"><span>🛒</span> Ventas</button>
+        <button class="nav-tab" data-tab="compras"><span>📥</span> Compras</button>
+        <button class="nav-tab" data-tab="proveedores"><span>🚚</span> Proveedores</button>
         <button class="nav-tab" data-tab="reportes"><span>📊</span> Reportes</button>
         <button class="nav-tab" data-tab="categorias"><span>🏷️</span> Categorías</button>
         <button class="nav-tab" data-tab="usuarios"><span>👥</span> Usuarios</button>
@@ -68,7 +67,6 @@
         </div>
         <div id="stat-productos" class="stat-inline"></div>
       </div>
-
       <div class="card filters-card">
         <div class="search-wrap">
           <span class="search-ico">🔍</span>
@@ -88,17 +86,13 @@
           <label class="pill"><input type="radio" name="filtro-estado" value="eliminados"><span>🗑️ Eliminados</span></label>
         </div>
       </div>
-
       <div id="lista-productos" class="product-grid"></div>
     </section>
 
     <!-- ====== NUEVO PRODUCTO ====== -->
     <section id="tab-nuevo" class="tab-content">
       <div class="section-head">
-        <div>
-          <h2>Crear Nuevo Producto</h2>
-          <p class="muted">Los campos con <span class="req">*</span> son obligatorios</p>
-        </div>
+        <div><h2>Crear Nuevo Producto</h2><p class="muted">Los campos con <span class="req">*</span> son obligatorios</p></div>
       </div>
       <form id="form-nuevo-producto" class="card form-card">
         <div class="form-section">
@@ -128,7 +122,6 @@
           <h3 class="form-section-title">🔗 Clasificación</h3>
           <div class="form-grid">
             <div class="field"><label>Categoría</label><select id="np-categoria"><option value="">— Sin categoría —</option></select></div>
-            <div class="field"><label>Proveedor</label><input id="np-proveedor-nombre" placeholder="Nombre del proveedor (opcional)"></div>
           </div>
         </div>
         <div class="form-actions">
@@ -185,6 +178,89 @@
         <div><h2>Historial de Ventas</h2><p class="muted" id="historial-subtitulo">Últimas facturas</p></div>
       </div>
       <div id="lista-ventas" class="venta-grid"></div>
+    </section>
+
+    <!-- ====== COMPRAS (Órdenes de Compra) ====== -->
+    <section id="tab-compras" class="tab-content">
+      <div class="section-head">
+        <div>
+          <h2>Órdenes de Compra</h2>
+          <p class="muted">Compra mercadería a proveedores y repón stock</p>
+        </div>
+        <button class="btn btn-primary" onclick="abrirNuevaOrden()">➕ Nueva Orden</button>
+      </div>
+
+      <!-- Formulario nueva orden (oculto por defecto) -->
+      <div id="form-orden-container" class="card" style="display:none;margin-bottom:20px">
+        <div class="card-head">
+          <h3>📝 Nueva Orden de Compra</h3>
+          <button class="btn btn-ghost btn-sm" onclick="cerrarNuevaOrden()">✕ Cancelar</button>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Proveedor <span class="req">*</span></label>
+            <select id="oc-proveedor" required><option value="">— Seleccionar —</option></select>
+          </div>
+          <div class="field">
+            <label>Fecha entrega esperada (opcional)</label>
+            <input id="oc-fecha" type="date">
+          </div>
+        </div>
+
+        <h4 style="margin-top:20px;margin-bottom:10px;font-size:14px">Productos a comprar</h4>
+        <div class="oc-add-row">
+          <select id="oc-producto"><option value="">— Producto —</option></select>
+          <input id="oc-cantidad" type="number" min="1" value="1" placeholder="Cant.">
+          <input id="oc-precio" type="number" min="0" step="0.01" placeholder="Precio costo">
+          <button type="button" class="btn btn-primary" onclick="agregarItemOrden()">➕ Agregar</button>
+        </div>
+
+        <div id="oc-items-lista" class="oc-items"></div>
+
+        <div class="oc-total-row">
+          <span>Total de la orden:</span>
+          <strong id="oc-total">$ 0</strong>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="guardarOrden()">💾 Crear Orden</button>
+          <p id="oc-msg" class="msg"></p>
+        </div>
+      </div>
+
+      <!-- Listado -->
+      <h3 style="margin-top:20px;margin-bottom:12px">Órdenes registradas</h3>
+      <div class="pills-row" style="margin-bottom:16px">
+        <label class="pill"><input type="radio" name="filtro-orden" value="todas" checked onchange="cargarOrdenes()"><span>📋 Todas</span></label>
+        <label class="pill"><input type="radio" name="filtro-orden" value="pendiente" onchange="cargarOrdenes()"><span>⏳ Pendientes</span></label>
+        <label class="pill"><input type="radio" name="filtro-orden" value="recibida" onchange="cargarOrdenes()"><span>✅ Recibidas</span></label>
+        <label class="pill"><input type="radio" name="filtro-orden" value="cancelada" onchange="cargarOrdenes()"><span>❌ Canceladas</span></label>
+      </div>
+      <div id="lista-ordenes" class="venta-grid"></div>
+    </section>
+
+    <!-- ====== PROVEEDORES ====== -->
+    <section id="tab-proveedores" class="tab-content">
+      <div class="section-head">
+        <div><h2>Proveedores</h2><p class="muted">Gestiona tus proveedores</p></div>
+      </div>
+      <form id="form-proveedor" class="card form-card">
+        <h3 class="form-section-title">➕ Nuevo Proveedor</h3>
+        <div class="form-grid">
+          <div class="field"><label>Nombre <span class="req">*</span></label><input id="prov-nombre" placeholder="Ej: Distribuidora del Sur" required></div>
+          <div class="field"><label>RUC</label><input id="prov-ruc" placeholder="Ej: 123456789"></div>
+          <div class="field"><label>Teléfono</label><input id="prov-telefono" placeholder="Ej: 099123456"></div>
+          <div class="field"><label>Email</label><input id="prov-email" type="email" placeholder="ventas@proveedor.com"></div>
+          <div class="field full"><label>Dirección</label><input id="prov-direccion" placeholder="Dirección"></div>
+          <div class="field full"><label>Contacto</label><input id="prov-contacto" placeholder="Nombre del vendedor / persona de contacto"></div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Crear Proveedor</button>
+          <p id="prov-msg" class="msg"></p>
+        </div>
+      </form>
+      <h3 style="margin-top:24px;margin-bottom:12px">Proveedores registrados</h3>
+      <div id="lista-proveedores" class="categoria-grid"></div>
     </section>
 
     <!-- ====== REPORTES ====== -->
@@ -268,6 +344,8 @@
 <script src="js/auth.js"></script>
 <script src="js/inventario.js"></script>
 <script src="js/ventas.js"></script>
+<script src="js/compras.js"></script>
+<script src="js/proveedores.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/app.js"></script>
 </body>

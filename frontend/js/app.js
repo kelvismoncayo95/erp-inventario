@@ -23,7 +23,7 @@ function initApp() {
   document.querySelectorAll('input[name="filtro-estado"]').forEach(r =>
     r.addEventListener('change', filtrarProductos));
 
-  /* Buscar en ventas — en vivo, sin esperar Enter */
+  /* Buscar en ventas */
   const ventaBuscar = $('venta-buscar');
   if (ventaBuscar) {
     ventaBuscar.addEventListener('input', renderVentaProductos);
@@ -32,10 +32,14 @@ function initApp() {
     });
   }
 
+  /* Autocompletar precio al seleccionar producto en compras */
+  if ($('oc-producto')) $('oc-producto').addEventListener('change', autocompletarPrecio);
+
   /* Formularios */
   if ($('form-nuevo-producto')) $('form-nuevo-producto').addEventListener('submit', crearProducto);
   if ($('form-categoria')) $('form-categoria').addEventListener('submit', crearCategoria);
   if ($('form-usuario')) $('form-usuario').addEventListener('submit', crearUsuario);
+  if ($('form-proveedor')) $('form-proveedor').addEventListener('submit', crearProveedor);
   if ($('btn-confirmar-venta')) $('btn-confirmar-venta').addEventListener('click', confirmarVenta);
 
   /* Reportes — segmentado período */
@@ -74,8 +78,6 @@ function configurarVistaPorRol() {
     ? 'Consulta precios y disponibilidad'
     : 'Gestiona tu inventario';
 
-  /* Vendedor: ocultar SOLO los chips de campo y pills de estado,
-     pero MANTENER visible el buscador. */
   if (esVendedor) {
     if ($('chips-avanzados')) $('chips-avanzados').style.display = 'none';
     if ($('pills-estado')) $('pills-estado').style.display = 'none';
@@ -94,6 +96,15 @@ window.verDetalleVenta = verDetalleVenta;
 window.anularVenta = anularVenta;
 window.desactivarUsuario = desactivarUsuario;
 window.activarUsuario = activarUsuario;
+window.abrirNuevaOrden = abrirNuevaOrden;
+window.cerrarNuevaOrden = cerrarNuevaOrden;
+window.agregarItemOrden = agregarItemOrden;
+window.quitarItemOrden = quitarItemOrden;
+window.guardarOrden = guardarOrden;
+window.verDetalleOrden = verDetalleOrden;
+window.recibirOrden = recibirOrden;
+window.cancelarOrden = cancelarOrden;
+window.eliminarProveedor = eliminarProveedor;
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
 else initApp();

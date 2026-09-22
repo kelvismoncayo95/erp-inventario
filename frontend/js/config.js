@@ -6,15 +6,12 @@ console.log('📦 config.js cargado');
 const API_URL = `http://${window.location.hostname}:8000`;
 const MONEDA = '$';
 
-/* ---------- Helpers ---------- */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s == null ? '' : String(s).replace(/[&<>"']/g, c =>
   ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-/* Formato pesos uruguayos: 1.234,56 */
 const fmt = (n) => Number(n || 0).toLocaleString('es-UY', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2
+  minimumFractionDigits: 0, maximumFractionDigits: 2
 });
 const money = (n) => MONEDA + ' ' + fmt(n);
 
@@ -30,7 +27,6 @@ function extraerMensaje(d, fallback) {
   return fallback;
 }
 
-/* ---------- apiFetch con JWT ---------- */
 async function apiFetch(ep, opts = {}) {
   const token = localStorage.getItem('token');
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
@@ -50,23 +46,25 @@ async function apiFetch(ep, opts = {}) {
 /* ---------- Permisos por rol ---------- */
 const PERMISOS = {
   admin: {
-    tabs: ['productos', 'nuevo', 'ventas', 'reportes', 'categorias', 'usuarios'],
+    tabs: ['productos', 'nuevo', 'ventas', 'compras', 'proveedores', 'reportes', 'categorias', 'usuarios'],
     puedeVender: false,
     puedeEliminarProducto: true,
     puedeReactivar: true,
     puedeCrearUsuarios: true,
     puedeVerReportes: true,
     puedeAnular: true,
+    puedeComprar: true,
     vendeSimulacro: true
   },
   encargado: {
-    tabs: ['productos', 'nuevo', 'ventas', 'categorias'],
+    tabs: ['productos', 'nuevo', 'ventas', 'compras', 'proveedores', 'categorias'],
     puedeVender: true,
     puedeEliminarProducto: true,
     puedeReactivar: true,
     puedeCrearUsuarios: false,
     puedeVerReportes: false,
     puedeAnular: true,
+    puedeComprar: true,
     vendeSimulacro: false
   },
   vendedor: {
@@ -77,6 +75,7 @@ const PERMISOS = {
     puedeCrearUsuarios: false,
     puedeVerReportes: false,
     puedeAnular: true,
+    puedeComprar: false,
     vendeSimulacro: false
   }
 };

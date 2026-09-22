@@ -1,62 +1,58 @@
 """
-Utilidades de seguridad:
-- Hash de contraseñas con bcrypt
-- Creación y verificación de tokens JWT
+Seguridad: JWT, hashing de contraseñas, tokens.
+Los valores sensibles vienen del .env (nunca hardcodeados).
 """
-from datetime import datetime, timedelta
+import os
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # ============================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN (desde .env)
 # ============================================
-SECRET_KEY = os.getenv("SECRET_KEY", "mi_clave_secreta_para_erp_inventario_2026")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "❌ SECRET_KEY no configurada. Copia .env.example a .env y define la tuya."
+    )
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-# Contexto para hashear contraseñas
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ============================================
-# HASH DE CONTRASEÑAS
+# CONTRASEÑAS
 # ============================================
 def hashear_password(password: str) -> str:
-    """Convierte una contraseña en su hash seguro."""
+    """Convierte una contraseña plana en hash bcrypt."""
     return pwd_context.hash(password)
 
 
-def verificar_password(password_plano: str, password_hash: str) -> bool:
-    """Verifica si una contraseña coincide con su hash."""
-    return pwd_context.verify(password_plano, password_hash)
+def verificar_password(plain_password: str, hashed_password: str) -> bool:
+    """Compara contraseña plana contra hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 # ============================================
 # TOKENS JWT
 # ============================================
-def crear_token_acceso(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Crea un token JWT con los datos del usuario."""
+def crear_token_acceso(data: dict) -> str:
+    """Genera un JWT firmado con expiración."""
     to_encode = data.copy()
-    
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return token
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decodificar_token(token: str) -> Optional[dict]:
-    """Decodifica un token JWT. Devuelve None si es inválido."""
+    """Decodifica un JWT. Devuelve None si es inválido o expirado."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None

@@ -367,3 +367,39 @@ label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2);
 .usuario-actions .btn { flex: 1; padding: 7px; font-size: 12px; }
 
 .vacio { color: var(--text-3); font-size: 14px; padding: 40px 20px; text-align: center; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px dashed var(--border); }
+
+/* ============ COMPRAS ============ */
+.oc-add-row {
+  display: grid;
+  grid-template-columns: 2fr 100px 130px auto;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .oc-add-row { grid-template-columns: 1fr 1fr; }
+  .oc-add-row button { grid-column: 1 / -1; }
+}
+.oc-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.oc-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.oc-item-info { flex: 1; min-width: 0; }
+.oc-item-info strong { display: block; font-size: 14px; color: var(--text); }
+.oc-item-info small { color: var(--text-2); font-size: 12px; }
+.oc-item-total { font-weight: 700; color: var(--primary-2); white-space: nowrap; }
+.oc-total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px;
+  background: var(--primary-bg);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: var(--primary-2);
+}
+.oc-total-row strong { font-size: 20px; font-weight: 800; }
+.vc-status.pendiente { background: var(--warning-bg); color: #b45309; }

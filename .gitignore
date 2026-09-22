@@ -1,46 +1,63 @@
-# Entornos virtuales
-venv/
-env/
-ENV/
-.venv/
+# ============================================
+# .gitignore — qué NO subir a GitHub
+# ============================================
 
-# Python
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-*.egg-info/
-.pytest_cache/
+venv/
+env/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Base de datos
-*.db
-*.sqlite
-*.sqlite3
-
-# Variables de entorno
+# ---------- Variables de entorno (SECRETOS) ----------
 .env
 .env.local
 .env.*.local
+*.env
 
-# IDE
+# ---------- Base de datos ----------
+*.db
+*.sqlite3
+*.sql
+
+# ---------- Backups automáticos (los que creamos) ----------
+*.backup
+*.backup.*
+*.bak
+
+# ---------- IDE / Editor ----------
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# Sistema operativo
+# ---------- Sistema operativo ----------
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+# ---------- Logs ----------
 *.log
 logs/
 
-# Node (por si acaso)
+# ---------- Node (por si agregas algo) ----------
 node_modules/
+npm-debug.log*
 
-# Backups
-*.bak
-*.backup
+# ---------- Coverage / tests ----------
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# ---------- Archivos temporales ----------
+tmp/
+temp/
+*.tmp
