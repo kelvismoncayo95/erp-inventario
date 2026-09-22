@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP Inventario</title>
+    <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<div id="vista-login" class="login-container" style="display:none">
+    <div class="login-card">
+        <h1>📦 ERP Inventario</h1>
+        <p class="sub">Inicia sesión para continuar</p>
+        <div id="mensaje-login" class="mensaje"></div>
+        <form onsubmit="hacerLogin(event)">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="login-email" required placeholder="admin@erp.com">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="login-password" required>
+            </div>
+            <button type="submit" id="btn-login">Iniciar Sesión</button>
+        </form>
+    </div>
+</div>
+
+<div id="vista-app" class="container" style="display:none">
+    <div class="header">
+        <div class="header-info">
+            <h1 id="user-nombre">Cargando...</h1>
+            <p id="user-email">-</p>
+            <span class="badge" id="user-rol">-</span>
+        </div>
+        <button class="btn-salir" onclick="cerrarSesion()">Salir</button>
+    </div>
+
+    <h1 class="titulo">📦 ERP Inventario</h1>
+
+    <div class="tabs">
+        <div class="tab active" onclick="cambiarTab('productos', this)">Productos</div>
+        <div class="tab" onclick="cambiarTab('nuevo', this)">Nuevo</div>
+        <div class="tab" onclick="cambiarTab('ventas', this)">Ventas</div>
+        <div class="tab" onclick="cambiarTab('reportes', this)">Reportes</div>
+        <div class="tab" onclick="cambiarTab('categorias', this)">Categorías</div>
+    </div>
+
+    <!-- PRODUCTOS con filtros y botones Activos/Todos/Eliminados -->
+    <div id="tab-productos" class="contenido-tab active">
+        <div class="card">
+            <h2>Lista de Productos</h2>
+            <div class="form-group">
+                <input type="text" id="buscar-producto" placeholder="🔍 Escribe para buscar..." oninput="filtrarProductos()">
+            </div>
+            <div class="filtros">
+                <div class="filtro active" data-filtro="todos" onclick="setFiltro('todos', this)">Todos</div>
+                <div class="filtro" data-filtro="nombre" onclick="setFiltro('nombre', this)">Nombre</div>
+                <div class="filtro" data-filtro="sku" onclick="setFiltro('sku', this)">SKU</div>
+                <div class="filtro" data-filtro="descripcion" onclick="setFiltro('descripcion', this)">Descripción</div>
+                <div class="filtro" data-filtro="proveedor" onclick="setFiltro('proveedor', this)">Proveedor</div>
+                <div class="filtro" data-filtro="categoria" onclick="setFiltro('categoria', this)">Categoría</div>
+            </div>
+            <div class="filtros">
+                <div class="filtro-estado active" data-estado="activos" onclick="setEstado('activos', this)">✅ Activos</div>
+                <div class="filtro-estado" data-estado="todos" onclick="setEstado('todos', this)">📋 Todos</div>
+                <div class="filtro-estado" data-estado="eliminados" onclick="setEstado('eliminados', this)">🗑️ Eliminados</div>
+            </div>
+            <div id="lista-productos"><div class="loading">Cargando...</div></div>
+        </div>
+    </div>
+
+    <!-- NUEVO PRODUCTO -->
+    <div id="tab-nuevo" class="contenido-tab">
+        <div class="card">
+            <h2>Crear Nuevo Producto</h2>
+            <div id="mensaje-producto" class="mensaje"></div>
+            <form id="form-producto" onsubmit="crearProducto(event)">
+                <div class="form-group"><label>Nombre *</label><input type="text" id="nombre" required placeholder="Ej: Coca-Cola 500ml"></div>
+                <div class="form-group"><label>SKU *</label><input type="text" id="sku" required placeholder="Ej: COCA-500"></div>
+                <div class="form-group"><label>Descripción</label><input type="text" id="descripcion" placeholder="Opcional"></div>
+                <div class="form-group"><label>Precio Costo *</label><input type="number" id="precio_costo" step="0.01" min="0.01" required placeholder="Ej: 25.00"></div>
+                <div class="form-group"><label>Precio Venta *</label><input type="number" id="precio_venta" step="0.01" min="0.01" required placeholder="Ej: 45.00"></div>
+                <div class="form-group"><label>Stock Inicial</label><input type="number" id="stock_actual" min="0" value="0"></div>
+                <div class="form-group"><label>ID Categoría</label><input type="number" id="categoria_id" min="1" placeholder="Ej: 1"></div>
+                <div class="form-group"><label>ID Proveedor</label><input type="number" id="proveedor_id" min="1" placeholder="Ej: 1"></div>
+                <button type="submit" id="btn-crear">Crear Producto</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- VENTAS -->
+    <div id="tab-ventas" class="contenido-tab">
+        <div class="card">
+            <h2>🛒 Nueva Venta</h2>
+            <div id="mensaje-venta" class="mensaje"></div>
+            <div class="form-group"><label>Cliente</label><input type="text" id="venta-cliente" placeholder="Ej: Juan Pérez"></div>
+            <div class="form-group"><label>Teléfono</label><input type="text" id="venta-telefono" placeholder="Ej: 099123456"></div>
+            <h3 style="font-size:15px;margin:15px 0 10px;color:#aaa">Productos:</h3>
+            <div id="productos-venta"><div class="loading">Cargando...</div></div>
+            <button type="button" onclick="confirmarVenta()" style="margin-top:15px">Confirmar Venta</button>
+        </div>
+        <div class="card">
+            <h2>📜 Historial de Ventas</h2>
+            <div id="historial-ventas"><div class="loading">Cargando...</div></div>
+        </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div id="tab-reportes" class="contenido-tab">
+        <div class="card"><h2>📊 Resumen</h2><div id="resumen-reportes"><div class="loading">Cargando...</div></div></div>
+        <div class="card"><h2>🏆 Más Vendidos</h2><div id="top-productos"><div class="loading">Cargando...</div></div></div>
+        <div class="card"><h2>💰 Ganancias</h2><div id="ganancias-reportes"><div class="loading">Cargando...</div></div></div>
+        <div class="card"><h2>⚠️ Stock Bajo</h2><div id="stock-bajo"><div class="loading">Cargando...</div></div></div>
+    </div>
+
+    <!-- CATEGORÍAS -->
+    <div id="tab-categorias" class="contenido-tab">
+        <div class="card">
+            <h2>📂 Categorías</h2>
+            <div id="mensaje-categoria" class="mensaje"></div>
+            <form id="form-categoria" onsubmit="crearCategoria(event)">
+                <div class="form-group"><label>Nombre *</label><input type="text" id="cat-nombre" required placeholder="Ej: Bebidas"></div>
+                <div class="form-group"><label>Descripción</label><input type="text" id="cat-descripcion" placeholder="Opcional"></div>
+                <button type="submit" id="btn-crear-categoria">Crear Categoría</button>
+            </form>
+        </div>
+        <div class="card"><h2>Lista</h2><div id="lista-categorias"><div class="loading">Cargando...</div></div></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

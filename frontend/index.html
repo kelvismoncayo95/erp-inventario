@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#6366f1">
+<title>ERP Inventario</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="vista-login" class="login-view">
+  <div class="login-card">
+    <div class="login-logo">📦</div>
+    <h1>ERP Inventario</h1>
+    <p class="login-sub">Sistema de gestión de inventario y ventas</p>
+    <form id="login-form" autocomplete="on">
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" placeholder="admin@erp.com" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" type="password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
+      <p id="login-error" class="msg-error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="vista-app" class="app-view">
+
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">📦</span>
+        <span class="brand-name">ERP Inventario</span>
+      </div>
+      <nav class="nav" id="nav-tabs">
+        <button class="nav-tab active" data-tab="productos"><span>📋</span> Productos</button>
+        <button class="nav-tab" data-tab="nuevo"><span>➕</span> Nuevo</button>
+        <button class="nav-tab" data-tab="ventas"><span>🛒</span> Ventas</button>
+        <button class="nav-tab" data-tab="reportes"><span>📊</span> Reportes</button>
+        <button class="nav-tab" data-tab="categorias"><span>🏷️</span> Categorías</button>
+        <button class="nav-tab" data-tab="usuarios"><span>👥</span> Usuarios</button>
+      </nav>
+      <div class="user-menu">
+        <div class="user-text">
+          <strong id="usuario-nombre">—</strong>
+          <small id="usuario-rol">—</small>
+        </div>
+        <button class="btn btn-danger btn-sm btn-logout">Salir</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ====== PRODUCTOS ====== -->
+    <section id="tab-productos" class="tab-content active">
+      <div class="section-head">
+        <div>
+          <h2>Productos</h2>
+          <p class="muted" id="productos-subtitulo">Gestiona tu inventario</p>
+        </div>
+        <div id="stat-productos" class="stat-inline"></div>
+      </div>
+
+      <div class="card filters-card">
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input id="filtro-texto" type="text" placeholder="Buscar por nombre, SKU o descripción..." autocomplete="off">
+        </div>
+        <div class="chips-row" id="chips-avanzados">
+          <button class="chip active" data-campo="todos">Todos</button>
+          <button class="chip" data-campo="nombre">Nombre</button>
+          <button class="chip" data-campo="sku">SKU</button>
+          <button class="chip" data-campo="descripcion">Descripción</button>
+          <button class="chip" data-campo="proveedor">Proveedor</button>
+          <button class="chip" data-campo="categoria">Categoría</button>
+        </div>
+        <div class="pills-row" id="pills-estado">
+          <label class="pill"><input type="radio" name="filtro-estado" value="activos" checked><span>✅ Activos</span></label>
+          <label class="pill"><input type="radio" name="filtro-estado" value="todos"><span>📋 Todos</span></label>
+          <label class="pill"><input type="radio" name="filtro-estado" value="eliminados"><span>🗑️ Eliminados</span></label>
+        </div>
+      </div>
+
+      <div id="lista-productos" class="product-grid"></div>
+    </section>
+
+    <!-- ====== NUEVO PRODUCTO ====== -->
+    <section id="tab-nuevo" class="tab-content">
+      <div class="section-head">
+        <div>
+          <h2>Crear Nuevo Producto</h2>
+          <p class="muted">Los campos con <span class="req">*</span> son obligatorios</p>
+        </div>
+      </div>
+      <form id="form-nuevo-producto" class="card form-card">
+        <div class="form-section">
+          <h3 class="form-section-title">📝 Información básica</h3>
+          <div class="form-grid">
+            <div class="field"><label>Nombre <span class="req">*</span></label><input id="np-nombre" placeholder="Ej: Coca-Cola 500ml" required></div>
+            <div class="field"><label>SKU / Código <span class="req">*</span></label><input id="np-sku" placeholder="Ej: COCA-500" required></div>
+            <div class="field full"><label>Descripción</label><input id="np-descripcion" placeholder="Descripción corta del producto"></div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h3 class="form-section-title">💰 Precios</h3>
+          <div class="form-grid">
+            <div class="field"><label>Precio de costo <span class="req">*</span></label><input id="np-costo" type="number" step="0.01" placeholder="0.00" required></div>
+            <div class="field"><label>Precio de venta <span class="req">*</span></label><input id="np-venta" type="number" step="0.01" placeholder="0.00" required></div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h3 class="form-section-title">📦 Inventario</h3>
+          <div class="form-grid form-grid-3">
+            <div class="field"><label>Stock inicial</label><input id="np-stock" type="number" value="0"></div>
+            <div class="field"><label>Stock mínimo</label><input id="np-min" type="number" value="5"></div>
+            <div class="field"><label>Stock máximo</label><input id="np-max" type="number" value="100"></div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h3 class="form-section-title">🔗 Clasificación</h3>
+          <div class="form-grid">
+            <div class="field"><label>Categoría</label><select id="np-categoria"><option value="">— Sin categoría —</option></select></div>
+            <div class="field"><label>Proveedor</label><input id="np-proveedor-nombre" placeholder="Nombre del proveedor (opcional)"></div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Crear Producto</button>
+          <p id="np-msg" class="msg"></p>
+        </div>
+      </form>
+    </section>
+
+    <!-- ====== VENTAS ====== -->
+    <section id="tab-ventas" class="tab-content">
+      <div id="banner-simulacro" class="banner-simulacro">
+        <span>⚠️</span>
+        <div>
+          <strong>MODO SIMULACRO</strong>
+          <p>Las ventas que hagas aquí <b>NO</b> impactan la base de datos. Solo sirven para practicar.</p>
+        </div>
+      </div>
+      <div class="section-head">
+        <div>
+          <h2 id="ventas-titulo">Nueva Venta</h2>
+          <p class="muted" id="ventas-subtitulo">Busca por nombre o código y agrega productos</p>
+        </div>
+      </div>
+      <div class="venta-layout">
+        <div class="venta-productos">
+          <div class="card">
+            <div class="search-wrap" style="margin-bottom:14px">
+              <span class="search-ico">🔍</span>
+              <input id="venta-buscar" type="text" placeholder="Buscar por nombre o código de barra / SKU..." autocomplete="off">
+            </div>
+            <div id="venta-lista-productos" class="venta-product-list"></div>
+          </div>
+        </div>
+        <aside class="venta-carrito">
+          <div class="card cart-sticky">
+            <div class="card-head">
+              <h3>🛒 Carrito</h3>
+              <span id="cart-count" class="badge">0 items</span>
+            </div>
+            <div id="carrito-lista" class="cart-list"><p class="muted center">Carrito vacío</p></div>
+            <div class="cart-totals">
+              <div class="row"><span>Subtotal</span><span id="carrito-subtotal">0</span></div>
+              <div class="row"><span>IVA (22%)</span><span id="carrito-iva">0</span></div>
+              <div class="row total"><span>Total</span><span id="carrito-total">0</span></div>
+            </div>
+            <div class="field"><label>Cliente (opcional)</label><input id="venta-cliente" placeholder="Ej: Juan Pérez"></div>
+            <div class="field"><label>Teléfono (opcional)</label><input id="venta-telefono" placeholder="Ej: 099123456"></div>
+            <button id="btn-confirmar-venta" class="btn btn-primary btn-block">✅ Confirmar Venta</button>
+          </div>
+        </aside>
+      </div>
+      <div class="section-head" style="margin-top:32px">
+        <div><h2>Historial de Ventas</h2><p class="muted" id="historial-subtitulo">Últimas facturas</p></div>
+      </div>
+      <div id="lista-ventas" class="venta-grid"></div>
+    </section>
+
+    <!-- ====== REPORTES ====== -->
+    <section id="tab-reportes" class="tab-content">
+      <div class="section-head">
+        <div><h2>Reportes</h2><p class="muted">Análisis del negocio</p></div>
+      </div>
+      <div id="rep-resumen" class="kpi-grid"></div>
+      <div class="chart-grid">
+        <div class="card chart-card">
+          <div class="card-head"><h3>🏆 Top productos vendidos</h3></div>
+          <div id="rep-mas-vendidos" class="bar-chart"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-head">
+            <h3>📈 Ganancias por período</h3>
+            <div class="segmented" id="seg-periodo">
+              <button class="seg-btn" data-periodo="dia">Día</button>
+              <button class="seg-btn active" data-periodo="mes">Mes</button>
+              <button class="seg-btn" data-periodo="año">Año</button>
+            </div>
+          </div>
+          <div id="rep-ganancias" class="ganancias-list"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-head">
+          <h3>⚠️ Productos con stock bajo</h3>
+          <span id="rep-stock-count" class="badge warn">0</span>
+        </div>
+        <div id="rep-stock-bajo" class="stock-list"></div>
+      </div>
+    </section>
+
+    <!-- ====== CATEGORÍAS ====== -->
+    <section id="tab-categorias" class="tab-content">
+      <div class="section-head">
+        <div><h2>Categorías</h2><p class="muted">Organiza tus productos</p></div>
+      </div>
+      <form id="form-categoria" class="card form-inline">
+        <div class="field"><label>Nombre</label><input id="cat-nombre" placeholder="Ej: Bebidas" required></div>
+        <div class="field"><label>Descripción</label><input id="cat-descripcion" placeholder="Descripción opcional"></div>
+        <button type="submit" class="btn btn-primary">Agregar</button>
+        <p id="cat-msg" class="msg full"></p>
+      </form>
+      <div id="lista-categorias" class="categoria-grid"></div>
+    </section>
+
+    <!-- ====== USUARIOS ====== -->
+    <section id="tab-usuarios" class="tab-content">
+      <div class="section-head">
+        <div><h2>Usuarios</h2><p class="muted">Gestiona quién puede acceder al sistema</p></div>
+      </div>
+      <form id="form-usuario" class="card form-usuario">
+        <h3 class="form-section-title">➕ Nuevo usuario</h3>
+        <div class="form-grid">
+          <div class="field"><label>Nombre <span class="req">*</span></label><input id="us-nombre" placeholder="Ej: Juan Pérez" required></div>
+          <div class="field"><label>Email <span class="req">*</span></label><input id="us-email" type="email" placeholder="juan@erp.com" required></div>
+          <div class="field"><label>Contraseña <span class="req">*</span></label><input id="us-password" type="password" placeholder="Mínimo 6 caracteres" required minlength="6"></div>
+          <div class="field"><label>Rol <span class="req">*</span></label>
+            <select id="us-rol" required>
+              <option value="">— Seleccionar —</option>
+              <option value="vendedor">Vendedor</option>
+              <option value="encargado">Encargado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Crear Usuario</button>
+          <p id="us-msg" class="msg"></p>
+        </div>
+      </form>
+      <h3 style="margin-top:24px;margin-bottom:12px">Usuarios del sistema</h3>
+      <div id="lista-usuarios" class="usuarios-grid"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/inventario.js"></script>
+<script src="js/ventas.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

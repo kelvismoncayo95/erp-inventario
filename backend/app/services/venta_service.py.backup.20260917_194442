@@ -1,0 +1,224 @@
+"""
+Servicio de Ventas.
+Lógica transaccional de ventas y anulaciones.
+"""
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from decimal import Decimal
+from datetime import datetime, timedelta
+
+from app.models.producto import Producto
+from app.models.venta import Venta
+from app.models.item_venta import ItemVenta
+
+
+# ============================================
+# CONSTANTES
+# ============================================
+MINUTOS_ANULACION_VENDEDOR = 5  # Vendedor solo puede anular en 5 min
+
+
+# ============================================
+# EXCEPCIONES
+# ============================================
+class StockInsuficienteError(Exception):
+    """Error cuando no hay stock suficiente."""
+    pass
+
+
+class VentaInvalidaError(Exception):
+    """Error cuando una venta no puede ser anulada."""
+    pass
+
+
+class PermisoDenegadoError(Exception):
+    """Error cuando el usuario no tiene permiso para anular."""
+    pass
+
+
+class VentaService:
+
+    @staticmethod
+    def crear_venta(
+        db: Session,
+        items: list,
+        usuario_id: int,
+        cliente_nombre: str = None,
+        cliente_telefono: str = None,
+    ) -> Venta:
+        """
+        Crea una venta completa.
+        TRANSACCIÓN: si algo falla, se revierte todo.
+        """
+        try:
+            items_procesados = []
+            subtotal_total = Decimal("0.00")
+
+            # PASO 1: Verificar stock de todos los productos
+            for item in items:
+                producto_id = item["producto_id"]
+                cantidad = item["cantidad"]
+
+                producto = db.execute(
+                    select(Producto)
+                    .where(Producto.id == producto_id)
+                    .with_for_update()
+                ).scalar_one_or_none()
+
+                if producto is None:
+                    raise StockInsuficienteError(
+                        f"Producto con ID {producto_id} no existe"
+                    )
+
+                if not producto.activo:
+                    raise StockInsuficienteError(
+                        f"El producto '{producto.nombre}' está inactivo"
+                    )
+
+                if producto.stock_actual < cantidad:
+                    raise StockInsuficienteError(
+                        f"Stock insuficiente para '{producto.nombre}'. "
+                        f"Disponible: {producto.stock_actual}, solicitado: {cantidad}"
+                    )
+
+                precio_unitario = producto.precio_venta
+                subtotal = precio_unitario * cantidad
+                subtotal_total += subtotal
+
+                items_procesados.append({
+                    "producto": producto,
+                    "cantidad": cantidad,
+                    "precio_unitario": precio_unitario,
+                    "subtotal": subtotal,
+                })
+
+            # PASO 2: Calcular totales
+            iva = subtotal_total * Decimal("0.22")
+            total = subtotal_total + iva
+
+            # PASO 3: Crear la venta
+            venta = Venta(
+                numero_factura=f"V-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                subtotal=subtotal_total,
+                iva=iva,
+                total=total,
+                estado="completada",
+                cliente_nombre=cliente_nombre,
+                cliente_telefono=cliente_telefono,
+                creado_por=usuario_id,
+            )
+            db.add(venta)
+            db.flush()
+
+            # PASO 4: Crear items y descontar stock
+            for item in items_procesados:
+                producto = item["producto"]
+
+                item_venta = ItemVenta(
+                    venta_id=venta.id,
+                    producto_id=producto.id,
+                    cantidad=item["cantidad"],
+                    precio_unitario=item["precio_unitario"],
+                    subtotal=item["subtotal"],
+                )
+                db.add(item_venta)
+                producto.stock_actual -= item["cantidad"]
+
+            # PASO 5: COMMIT
+            db.commit()
+            db.refresh(venta)
+            return venta
+
+        except Exception as e:
+            db.rollback()
+            raise e
+
+    @staticmethod
+    def anular_venta(
+        db: Session,
+        venta_id: int,
+        usuario_id: int,
+        rol_usuario: str,
+    ) -> dict:
+        """
+        Anula una venta y devuelve el stock de los productos.
+        TRANSACCIÓN: todo o nada.
+
+        Reglas de anulación según rol:
+        - **encargado**: puede anular sin límite de tiempo
+        - **vendedor**: solo puede anular dentro de los primeros 5 minutos
+        - **admin**: NO puede anular (no es su función)
+        """
+        try:
+            # PASO 1: Buscar la venta
+            venta = db.query(Venta).filter(Venta.id == venta_id).first()
+            if not venta:
+                raise VentaInvalidaError(
+                    f"Venta con ID {venta_id} no encontrada."
+                )
+
+            # PASO 2: Verificar que no esté ya anulada
+            if venta.estado == "anulada":
+                raise VentaInvalidaError(
+                    f"La venta {venta.numero_factura} ya está anulada."
+                )
+
+            # PASO 3: Validación de tiempo para vendedor
+            if rol_usuario == "vendedor":
+                # Calcular minutos transcurridos desde la venta
+                ahora = datetime.utcnow()
+                tiempo_venta = venta.fecha
+                minutos_transcurridos = (ahora - tiempo_venta).total_seconds() / 60
+
+                if minutos_transcurridos > MINUTOS_ANULACION_VENDEDOR:
+                    raise PermisoDenegadoError(
+                        f"Como vendedor, solo puedes anular ventas dentro de los "
+                        f"primeros {MINUTOS_ANULACION_VENDEDOR} minutos. "
+                        f"Esta venta tiene {minutos_transcurridos:.1f} minutos. "
+                        f"Contacta a un encargado."
+                    )
+
+            # PASO 4: Validar que el vendedor solo anule SUS ventas
+            if rol_usuario == "vendedor" and venta.creado_por != usuario_id:
+                raise PermisoDenegadoError(
+                    "Solo puedes anular ventas que tú mismo hayas realizado."
+                )
+
+            # PASO 5: Devolver stock de cada producto
+            stock_devuelto = []
+            for item in venta.items:
+                producto = db.execute(
+                    select(Producto)
+                    .where(Producto.id == item.producto_id)
+                    .with_for_update()
+                ).scalar_one_or_none()
+
+                if producto:
+                    producto.stock_actual += item.cantidad
+                    stock_devuelto.append({
+                        "producto_id": producto.id,
+                        "nombre": producto.nombre,
+                        "cantidad_devuelta": item.cantidad,
+                        "nuevo_stock": producto.stock_actual,
+                    })
+
+            # PASO 6: Cambiar estado a "anulada"
+            venta.estado = "anulada"
+
+            # PASO 7: COMMIT
+            db.commit()
+            db.refresh(venta)
+
+            return {
+                "mensaje": f"Venta {venta.numero_factura} anulada exitosamente.",
+                "venta_id": venta.id,
+                "nuevo_estado": venta.estado,
+                "stock_devuelto": stock_devuelto,
+            }
+
+        except (VentaInvalidaError, PermisoDenegadoError):
+            db.rollback()
+            raise
+        except Exception as e:
+            db.rollback()
+            raise VentaInvalidaError(f"Error al anular la venta: {str(e)}")

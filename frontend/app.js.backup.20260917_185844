@@ -1,0 +1,471 @@
+/* =========================================================
+   ERP INVENTARIO — app.js
+   ========================================================= */
+console.log('📦 app.js cargado');
+
+const API_URL = `http://${window.location.hostname}:8000`;
+console.log('🌐 API_URL =', API_URL);
+
+let productosCache = [];
+let categoriasCache = [];
+let proveedoresCache = [];
+let carritoVenta = [];
+let filtroCampo = 'todos';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s == null ? '' : String(s).replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const fmt = (n) => Number(n || 0).toLocaleString('es-PY');
+
+function extraerMensaje(d, fallback) {
+  if (!d) return fallback;
+  if (typeof d === 'string') return d;
+  if (d.detail) {
+    if (typeof d.detail === 'string') return d.detail;
+    if (Array.isArray(d.detail)) return d.detail.map(e =>
+      `${(e.loc || []).join('.')}: ${e.msg || JSON.stringify(e)}`).join(' | ');
+    return JSON.stringify(d.detail);
+  }
+  return fallback;
+}
+
+/* ---------- apiFetch con JWT ---------- */
+async function apiFetch(endpoint, opts = {}) {
+  const token = localStorage.getItem('token');
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+
+  let res;
+  try { res = await fetch(API_URL + endpoint, { ...opts, headers }); }
+  catch (e) { throw new Error('No se pudo conectar al servidor'); }
+
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    mostrarVista('login');
+    throw new Error('Sesión expirada');
+  }
+  return res;
+}
+
+/* ---------- Vistas ---------- */
+function mostrarVista(nombre) {
+  $('vista-login').style.display = nombre === 'login' ? 'flex' : 'none';
+  $('vista-app').style.display   = nombre === 'login' ? 'none' : 'block';
+  if (nombre !== 'login') {
+    const u = JSON.parse(localStorage.getItem('usuario') || '{}');
+    $('usuario-nombre').textContent = u.nombre || u.email || '';
+  }
+}
+
+/* ---------- LOGIN ---------- */
+async function hacerLogin(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  const err = $('login-error');
+  err.textContent = '';
+
+  if (!email || !password) { err.textContent = 'Completa email y contraseña'; return; }
+
+  try {
+    const formData = new FormData();
+    formData.append('username', email);
+    formData.append('password', password);
+
+    const res = await fetch(API_URL + '/auth/login', { method: 'POST', body: formData });
+
+    if (!res.ok) {
+      let detalle = 'Credenciales inválidas';
+      try { detalle = extraerMensaje(await res.json(), detalle); } catch (_) {}
+      throw new Error(detalle);
+    }
+
+    const data = await res.json();
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('usuario', JSON.stringify(data.usuario || {}));
+    mostrarVista('app');
+
+    // Cargar datos en paralelo
+    await Promise.all([cargarCategorias(), cargarProveedores(), cargarProductos()]);
+    mostrarTab('productos');
+  } catch (ex) {
+    err.textContent = ex.message;
+  }
+}
+
+function cerrarSesion() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('usuario');
+  mostrarVista('login');
+}
+
+/* ---------- TABS ---------- */
+function mostrarTab(nombre) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  const el = $('tab-' + nombre);
+  if (el) el.style.display = 'block';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${nombre}"]`);
+  if (btn) btn.classList.add('activo');
+
+  if (nombre === 'productos') cargarProductos();
+  else if (nombre === 'ventas') { cargarProductos(); cargarVentas(); }
+  else if (nombre === 'reportes') cargarReportes();
+  else if (nombre === 'categorias') cargarCategorias();
+}
+
+/* ---------- PRODUCTOS ---------- */
+async function cargarProductos() {
+  try {
+    const res = await apiFetch('/productos/');
+    if (!res.ok) throw new Error('Error cargando productos');
+    productosCache = await res.json();
+    filtrarProductos();
+    llenarSelectProductos();
+  } catch (ex) { console.error(ex); }
+}
+
+function filtrarProductos() {
+  const texto = ($('filtro-texto')?.value || '').toLowerCase().trim();
+  const estado = document.querySelector('input[name="filtro-estado"]:checked')?.value || 'activos';
+
+  let lista = productosCache.slice();
+  if (estado === 'activos') lista = lista.filter(p => p.activo == 1);
+  else if (estado === 'eliminados') lista = lista.filter(p => p.activo != 1);
+
+  if (texto) {
+    lista = lista.filter(p => {
+      const campos = {
+        todos: [p.nombre, p.sku, p.descripcion, p.categoria?.nombre, p.proveedor?.nombre],
+        nombre: [p.nombre], sku: [p.sku], descripcion: [p.descripcion],
+        proveedor: [p.proveedor?.nombre], categoria: [p.categoria?.nombre]
+      };
+      const arr = campos[filtroCampo] || campos.todos;
+      return arr.some(v => v && String(v).toLowerCase().includes(texto));
+    });
+  }
+  renderProductos(lista);
+}
+
+function renderProductos(lista) {
+  const cont = $('lista-productos');
+  if (!lista.length) { cont.innerHTML = '<p class="vacio">No hay productos</p>'; return; }
+  cont.innerHTML = lista.map(p => {
+    const elim = p.activo != 1;
+    return `
+    <div class="producto-card ${elim ? 'eliminado' : ''}">
+      <h3>${esc(p.nombre)}</h3>
+      <p class="sku">SKU: ${esc(p.sku)}</p>
+      <p>${esc(p.descripcion || '')}</p>
+      <p><strong>Precio:</strong> ${fmt(p.precio_venta)}</p>
+      <p><strong>Stock:</strong> ${p.stock_actual}</p>
+      <p><strong>Categoría:</strong> ${esc(p.categoria?.nombre || '-')}</p>
+      <p><strong>Proveedor:</strong> ${esc(p.proveedor?.nombre || '-')}</p>
+      <div class="acciones">
+        ${elim
+          ? `<button class="btn-reactivar" onclick="reactivarProducto(${p.id})">Reactivar</button>`
+          : `<button class="btn-eliminar" onclick="eliminarProducto(${p.id})">Eliminar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function eliminarProducto(id) {
+  if (!confirm('¿Eliminar producto?')) return;
+  try {
+    const res = await apiFetch(`/productos/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Error al eliminar');
+    await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+async function reactivarProducto(id) {
+  try {
+    const res = await apiFetch(`/productos/${id}/reactivar`, { method: 'POST' });
+    if (!res.ok) throw new Error('Error al reactivar');
+    await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- CREAR PRODUCTO ---------- */
+async function crearProducto(e) {
+  e.preventDefault();
+  const data = {
+    nombre: $('np-nombre').value.trim(),
+    sku: $('np-sku').value.trim(),
+    descripcion: $('np-descripcion').value.trim(),
+    precio_costo: parseFloat($('np-costo').value || 0),
+    precio_venta: parseFloat($('np-venta').value || 0),
+    stock_actual: parseInt($('np-stock').value || 0),
+    stock_minimo: parseInt($('np-min').value || 5),
+    stock_maximo: parseInt($('np-max').value || 100),
+    categoria_id: $('np-categoria').value ? parseInt($('np-categoria').value) : null,
+    proveedor_id: $('np-proveedor').value ? parseInt($('np-proveedor').value) : null
+  };
+  const msg = $('np-msg');
+  try {
+    const res = await apiFetch('/productos/', { method: 'POST', body: JSON.stringify(data) });
+    if (!res.ok) throw new Error(extraerMensaje(await res.json().catch(() => ({})), 'Error al crear'));
+    msg.textContent = '✅ Producto creado'; msg.className = 'ok';
+    e.target.reset();
+    await cargarProductos();
+  } catch (ex) { msg.textContent = '❌ ' + ex.message; msg.className = 'err'; }
+}
+
+function llenarSelectProductos() {
+  const sel = $('venta-producto');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
+    productosCache.filter(p => p.activo == 1 && p.stock_actual > 0)
+      .map(p => `<option value="${p.id}">${esc(p.nombre)} — ${fmt(p.precio_venta)} (stock: ${p.stock_actual})</option>`).join('');
+}
+
+/* ---------- CATEGORÍAS ---------- */
+async function cargarCategorias() {
+  try {
+    const res = await apiFetch('/categorias/');
+    if (!res.ok) return;
+    categoriasCache = await res.json();
+    const sel = $('np-categoria');
+    if (sel) sel.innerHTML = '<option value="">Sin categoría</option>' +
+      categoriasCache.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
+    renderCategorias();
+  } catch (ex) { console.error(ex); }
+}
+
+function renderCategorias() {
+  const cont = $('lista-categorias');
+  if (!categoriasCache.length) { cont.innerHTML = '<p class="vacio">No hay categorías</p>'; return; }
+  cont.innerHTML = categoriasCache.map(c => `
+    <div class="categoria-card">
+      <h4>${esc(c.nombre)}</h4>
+      <p>${esc(c.descripcion || '')}</p>
+      <button class="btn-eliminar" onclick="eliminarCategoria(${c.id})">Eliminar</button>
+    </div>`).join('');
+}
+
+async function crearCategoria(e) {
+  e.preventDefault();
+  const msg = $('cat-msg');
+  try {
+    const res = await apiFetch('/categorias/', {
+      method: 'POST',
+      body: JSON.stringify({ nombre: $('cat-nombre').value.trim(), descripcion: $('cat-descripcion').value.trim() })
+    });
+    if (!res.ok) throw new Error(extraerMensaje(await res.json().catch(() => ({})), 'Error'));
+    msg.textContent = '✅ Creada'; msg.className = 'ok';
+    e.target.reset();
+    await cargarCategorias();
+  } catch (ex) { msg.textContent = '❌ ' + ex.message; msg.className = 'err'; }
+}
+
+async function eliminarCategoria(id) {
+  if (!confirm('¿Eliminar categoría?')) return;
+  try {
+    const res = await apiFetch(`/categorias/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Error al eliminar');
+    await cargarCategorias();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- PROVEEDORES ---------- */
+async function cargarProveedores() {
+  try {
+    const res = await apiFetch('/proveedores/');
+    if (!res.ok) return;
+    proveedoresCache = await res.json();
+    const sel = $('np-proveedor');
+    if (sel) sel.innerHTML = '<option value="">Sin proveedor</option>' +
+      proveedoresCache.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+  } catch (ex) {}
+}
+
+/* ---------- VENTAS ---------- */
+function agregarAlCarrito() {
+  const prodId = parseInt($('venta-producto').value);
+  const cant = parseInt($('venta-cantidad').value || 1);
+  if (!prodId) return alert('Selecciona un producto');
+  const p = productosCache.find(x => x.id === prodId);
+  if (!p) return;
+  const ex = carritoVenta.find(i => i.producto_id === prodId);
+  if (ex) ex.cantidad += cant;
+  else carritoVenta.push({ producto_id: prodId, nombre: p.nombre, precio_unitario: Number(p.precio_venta), cantidad: cant });
+  renderCarrito();
+}
+
+function renderCarrito() {
+  const cont = $('carrito-lista');
+  if (!carritoVenta.length) {
+    cont.innerHTML = '<p class="vacio">Carrito vacío</p>';
+    $('carrito-subtotal').textContent = '0';
+    $('carrito-iva').textContent = '0';
+    $('carrito-total').textContent = '0';
+    return;
+  }
+  let sub = 0;
+  cont.innerHTML = carritoVenta.map((i, idx) => {
+    const st = i.precio_unitario * i.cantidad; sub += st;
+    return `<div class="carrito-item">
+      <span>${esc(i.nombre)}</span><span>x${i.cantidad}</span><span>${fmt(st)}</span>
+      <button onclick="quitarDelCarrito(${idx})">✕</button>
+    </div>`;
+  }).join('');
+  const iva = sub * 0.22;
+  $('carrito-subtotal').textContent = fmt(sub);
+  $('carrito-iva').textContent = fmt(iva);
+  $('carrito-total').textContent = fmt(sub + iva);
+}
+
+function quitarDelCarrito(idx) { carritoVenta.splice(idx, 1); renderCarrito(); }
+
+async function confirmarVenta() {
+  if (!carritoVenta.length) return alert('Carrito vacío');
+  try {
+    const res = await apiFetch('/ventas/', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: carritoVenta.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
+        cliente_nombre: $('venta-cliente').value || null,
+        cliente_telefono: $('venta-telefono').value || null
+      })
+    });
+    if (!res.ok) throw new Error(extraerMensaje(await res.json().catch(() => ({})), 'Error'));
+    alert('✅ Venta registrada');
+    carritoVenta = []; renderCarrito();
+    $('venta-cliente').value = ''; $('venta-telefono').value = '';
+    await cargarProductos(); await cargarVentas();
+  } catch (ex) { alert('❌ ' + ex.message); }
+}
+
+async function cargarVentas() {
+  try {
+    const res = await apiFetch('/ventas/');
+    if (!res.ok) return;
+    const ventas = await res.json();
+    const cont = $('lista-ventas');
+    if (!ventas.length) { cont.innerHTML = '<p class="vacio">No hay ventas</p>'; return; }
+    cont.innerHTML = ventas.map(v => `
+      <div class="venta-card">
+        <p><strong>${esc(v.numero_factura)}</strong></p>
+        <p>Fecha: ${esc(v.fecha)}</p>
+        <p>Cliente: ${esc(v.cliente_nombre || '-')}</p>
+        <p>Total: ${fmt(v.total)}</p>
+        <p>Estado: ${esc(v.estado)}</p>
+        <button onclick="verDetalleVenta(${v.id})">Ver detalle</button>
+        ${v.estado === 'completada' ? `<button class="btn-eliminar" style="width:auto;padding:6px 10px;font-size:12px" onclick="anularVenta(${v.id})">Anular</button>` : ''}
+      </div>`).join('');
+  } catch (ex) {}
+}
+
+async function verDetalleVenta(id) {
+  try {
+    const res = await apiFetch(`/ventas/${id}`);
+    if (!res.ok) throw new Error('No se pudo cargar');
+    const v = await res.json();
+    const items = v.items || v.items_venta || [];
+    const txt = items.map(i => `• ${i.producto?.nombre || 'Producto ' + i.producto_id} x${i.cantidad} = ${fmt(i.subtotal)}`).join('\n');
+    alert(`Factura: ${v.numero_factura}\nCliente: ${v.cliente_nombre || '-'}\n\n${txt}\n\nSubtotal: ${fmt(v.subtotal)}\nIVA: ${fmt(v.iva)}\nTotal: ${fmt(v.total)}`);
+  } catch (ex) { alert(ex.message); }
+}
+
+async function anularVenta(id) {
+  if (!confirm('¿Anular venta? Se devolverá el stock.')) return;
+  try {
+    const res = await apiFetch(`/ventas/${id}/anular`, { method: 'POST' });
+    if (!res.ok) throw new Error('Error');
+    await cargarVentas(); await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- REPORTES ---------- */
+async function cargarReportes() {
+  try {
+    const [r1, r2, r3, r4] = await Promise.all([
+      apiFetch('/reportes/resumen').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/productos-mas-vendidos').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/ganancias').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/stock-bajo').then(r => r.ok ? r.json() : null)
+    ]);
+    renderResumen(r1); renderMasVendidos(r2); renderGanancias(r3); renderStockBajo(r4);
+  } catch (ex) {}
+}
+
+function renderResumen(d) {
+  const c = $('rep-resumen'); if (!c || !d) return;
+  c.innerHTML = `
+    <div class="kpi"><h3>${fmt(d.total_ventas || d.ventas || 0)}</h3><p>Ventas</p></div>
+    <div class="kpi"><h3>${fmt(d.ingresos || d.total_ingresos || 0)}</h3><p>Ingresos</p></div>
+    <div class="kpi"><h3>${fmt(d.productos || d.total_productos || 0)}</h3><p>Productos</p></div>
+    <div class="kpi"><h3>${fmt(d.clientes || 0)}</h3><p>Clientes</p></div>`;
+}
+function renderMasVendidos(d) {
+  const c = $('rep-mas-vendidos'); if (!c || !d) return;
+  const arr = Array.isArray(d) ? d : (d.productos || []);
+  if (!arr.length) { c.innerHTML = '<p class="vacio">Sin datos</p>'; return; }
+  c.innerHTML = arr.map(p => `<div class="reporte-item"><span>${esc(p.nombre || p.producto)}</span><span>${p.total_vendido || p.cantidad || 0} vendidos</span></div>`).join('');
+}
+function renderGanancias(d) {
+  const c = $('rep-ganancias'); if (!c || !d) return;
+  const arr = Array.isArray(d) ? d : (d.periodos || []);
+  if (!arr.length) { c.innerHTML = '<p class="vacio">Sin datos</p>'; return; }
+  c.innerHTML = arr.map(g => `<div class="reporte-item"><span>${esc(g.periodo)}</span><span>${fmt(g.ingresos)} (${g.cantidad_ventas} ventas)</span></div>`).join('');
+}
+function renderStockBajo(d) {
+  const c = $('rep-stock-bajo'); if (!c || !d) return;
+  const arr = Array.isArray(d) ? d : (d.productos || []);
+  if (!arr.length) { c.innerHTML = '<p class="vacio">Todo OK 👍</p>'; return; }
+  c.innerHTML = arr.map(p => `<div class="reporte-item alerta"><span>${esc(p.nombre)}</span><span>Stock: ${p.stock_actual} / min ${p.stock_minimo}</span></div>`).join('');
+}
+
+/* ---------- INIT ---------- */
+function initApp() {
+  // Login
+  const loginForm = $('login-form');
+  if (loginForm) loginForm.addEventListener('submit', hacerLogin);
+  document.querySelectorAll('.btn-logout').forEach(b => b.addEventListener('click', cerrarSesion));
+
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => mostrarTab(b.dataset.tab)));
+
+  // Filtros
+  document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(x => x.classList.remove('activo'));
+    ch.classList.add('activo');
+    filtroCampo = ch.dataset.campo;
+    $('filtro-campo').value = filtroCampo;
+    filtrarProductos();
+  }));
+  if ($('filtro-texto')) $('filtro-texto').addEventListener('input', filtrarProductos);
+  document.querySelectorAll('input[name="filtro-estado"]').forEach(r => r.addEventListener('change', filtrarProductos));
+
+  // Formularios
+  if ($('form-nuevo-producto')) $('form-nuevo-producto').addEventListener('submit', crearProducto);
+  if ($('form-categoria')) $('form-categoria').addEventListener('submit', crearCategoria);
+  if ($('btn-agregar-carrito')) $('btn-agregar-carrito').addEventListener('click', agregarAlCarrito);
+  if ($('btn-confirmar-venta')) $('btn-confirmar-venta').addEventListener('click', confirmarVenta);
+
+  // Sesión
+  const token = localStorage.getItem('token');
+  if (token) {
+    mostrarVista('app');
+    Promise.all([cargarCategorias(), cargarProveedores(), cargarProductos()])
+      .then(() => mostrarTab('productos'))
+      .catch(() => mostrarVista('login'));
+  } else {
+    mostrarVista('login');
+  }
+}
+
+window.hacerLogin = hacerLogin;
+window.cerrarSesion = cerrarSesion;
+window.mostrarTab = mostrarTab;
+window.eliminarProducto = eliminarProducto;
+window.reactivarProducto = reactivarProducto;
+window.eliminarCategoria = eliminarCategoria;
+window.quitarDelCarrito = quitarDelCarrito;
+window.verDetalleVenta = verDetalleVenta;
+window.anularVenta = anularVenta;
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+else initApp();

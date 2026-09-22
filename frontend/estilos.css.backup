@@ -1,0 +1,49 @@
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,sans-serif}
+body{background:#0f0f14;padding:20px;color:#e0e0e0;min-height:100vh}
+.container{max-width:800px;margin:0 auto}
+.login-container{max-width:400px;margin:80px auto}
+.login-card{background:#1a1a24;border-radius:12px;padding:30px}
+.login-card h1{font-size:24px;color:#fff;margin-bottom:8px;text-align:center}
+.login-card p.sub{color:#888;text-align:center;margin-bottom:25px;font-size:14px}
+.header{background:#1a1a24;border-radius:12px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center}
+.header-info h1{font-size:18px;color:#fff}
+.header-info p{font-size:13px;color:#888;margin-top:4px}
+.badge{display:inline-block;background:#ffd166;color:#000;font-size:11px;font-weight:bold;padding:3px 10px;border-radius:20px;margin-top:6px}
+.btn-salir{background:#e74c3c;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+h1.titulo{font-size:24px;color:#fff;margin-bottom:20px}
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:10px 16px;background:#1a1a24;border-radius:8px;cursor:pointer;font-size:14px;color:#888;border:2px solid transparent;transition:all .2s}
+.tab.active{color:#4a90e2;border-color:#4a90e2;background:#1e2530}
+.contenido-tab{display:none}
+.contenido-tab.active{display:block}
+.card{background:#1a1a24;border-radius:12px;padding:20px;margin-bottom:20px}
+.card h2{font-size:18px;margin-bottom:15px;color:#fff}
+.form-group{margin-bottom:15px}
+label{display:block;margin-bottom:6px;font-size:14px;color:#aaa;font-weight:500}
+input,textarea,select{width:100%;padding:12px;background:#0f0f14;border:2px solid #2a2a38;border-radius:8px;font-size:15px;color:#fff;transition:border-color .2s}
+input:focus,textarea:focus,select:focus{outline:none;border-color:#4a90e2}
+button{background:#4a90e2;color:#fff;border:none;padding:14px 24px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;width:100%;transition:background .2s}
+button:hover{background:#357abd}
+button:disabled{background:#333;cursor:not-allowed}
+.btn-eliminar{background:#e74c3c;padding:8px 12px;width:auto;font-size:14px}
+.mensaje{padding:14px;border-radius:8px;margin-bottom:15px;font-size:14px;display:none}
+.mensaje.exito{background:#1a3a2a;color:#4ade80;border:1px solid #2a5a3a;display:block}
+.mensaje.error{background:#3a1a1a;color:#f87171;border:1px solid #5a2a2a;display:block}
+.producto{background:#0f0f14;border-radius:8px;padding:15px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.producto-info h3{font-size:15px;margin-bottom:4px;color:#fff}
+.producto-info p{font-size:13px;color:#888}
+.producto-precio{text-align:right;flex-shrink:0}
+.producto-precio .precio{font-size:17px;font-weight:bold;color:#4ade80}
+.producto-precio .stock{font-size:12px;color:#888;margin-top:4px}
+.stock-bajo{color:#f87171!important;font-weight:bold}
+.loading{text-align:center;color:#666;padding:20px}
+.filtros{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.filtro{padding:6px 12px;background:#2a2a38;border-radius:20px;font-size:12px;color:#aaa;cursor:pointer;border:1px solid transparent}
+.filtro.active{background:#4a90e2;color:#fff;border-color:#4a90e2}
+.filtro-estado{padding:6px 12px;background:#2a2a38;border-radius:8px;font-size:12px;color:#aaa;cursor:pointer;border:1px solid transparent}
+.filtro-estado.active{background:#4a90e2;color:#fff;border-color:#4a90e2}
+.producto-acciones{display:flex;gap:6px;margin-top:8px}
+.btn-accion{background:#2a2a38;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;width:auto}
+.btn-accion:hover{background:#3a3a48}
+.btn-accion.eliminar{background:#e74c3c}
+.btn-accion.eliminar:hover{background:#c0392b}

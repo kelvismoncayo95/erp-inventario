@@ -1,0 +1,600 @@
+/* =========================================================
+   ERP INVENTARIO — app.js
+   Lógica completa del frontend (login, productos, ventas,
+   reportes, categorías, proveedores)
+   ========================================================= */
+
+console.log('📦 app.js cargado');
+
+const API_URL = `http://${window.location.hostname}:8000`;
+console.log('🌐 API_URL =', API_URL);
+
+/* ---------- Estado global ---------- */
+let productosCache = [];
+let categoriasCache = [];
+let proveedoresCache = [];
+let carritoVenta = [];
+
+/* ---------- Helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s == null ? '' : String(s).replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const fmt = (n) => Number(n || 0).toLocaleString('es-PY');
+
+/* ---------- apiFetch con JWT ---------- */
+async function apiFetch(endpoint, opts = {}) {
+  const token = localStorage.getItem('token');
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+
+  let res;
+  try {
+    res = await fetch(API_URL + endpoint, { ...opts, headers });
+  } catch (netErr) {
+    console.error('❌ Error de red:', netErr);
+    throw new Error('No se pudo conectar al servidor. ¿Backend encendido? ¿CORS?');
+  }
+
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    mostrarVista('login');
+    throw new Error('Sesión expirada');
+  }
+  return res;
+}
+
+/* ---------- Vistas ---------- */
+function mostrarVista(nombre) {
+  const login = $('vista-login');
+  const app = $('vista-app');
+  if (nombre === 'login') {
+    if (login) login.style.display = 'flex';
+    if (app) app.style.display = 'none';
+  } else {
+    if (login) login.style.display = 'none';
+    if (app) app.style.display = 'block';
+    const u = JSON.parse(localStorage.getItem('usuario') || '{}');
+    if ($('usuario-nombre')) $('usuario-nombre').textContent = u.nombre || u.email || '';
+  }
+}
+
+/* ---------- LOGIN ---------- */
+async function hacerLogin(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  console.log('🔐 hacerLogin() disparado');
+
+  const emailEl = $('login-email');
+  const passEl  = $('login-password');
+  const err     = $('login-error');
+
+  if (!emailEl || !passEl) {
+    console.error('❌ No encuentro los campos login-email / login-password');
+    alert('Error: faltan los campos de login en el HTML');
+    return;
+  }
+
+  const email = emailEl.value.trim();
+  const password = passEl.value;
+
+  if (err) err.textContent = '';
+  console.log('   email:', email);
+
+  if (!email || !password) {
+    if (err) err.textContent = 'Completa email y contraseña';
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    console.log('   status:', res.status);
+
+    if (!res.ok) {
+      let detalle = 'Credenciales inválidas';
+      try {
+        const d = await res.json();
+        detalle = d.detail || detalle;
+      } catch (_) {}
+      throw new Error(detalle);
+    }
+
+    const data = await res.json();
+    console.log('   ✅ login OK:', data);
+
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('usuario', JSON.stringify(data.usuario || {}));
+    mostrarVista('app');
+    await Promise.all([cargarCategorias(), cargarProveedores()]);
+    await cargarProductos();
+    mostrarTab('productos');
+  } catch (ex) {
+    console.error('❌ Error login:', ex);
+    if (err) err.textContent = ex.message;
+    else alert('Error de login: ' + ex.message);
+  }
+}
+
+function cerrarSesion() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('usuario');
+  mostrarVista('login');
+}
+
+/* ---------- TABS ---------- */
+function mostrarTab(nombre) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  const el = $('tab-' + nombre);
+  if (el) el.style.display = 'block';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('activo'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${nombre}"]`);
+  if (btn) btn.classList.add('activo');
+
+  if (nombre === 'productos') cargarProductos();
+  else if (nombre === 'ventas') { cargarProductos(); cargarVentas(); }
+  else if (nombre === 'reportes') cargarReportes();
+  else if (nombre === 'categorias') cargarCategorias();
+}
+
+/* ---------- PRODUCTOS ---------- */
+let filtroProductos = { campo: 'todos', texto: '', estado: 'activos' };
+
+async function cargarProductos() {
+  try {
+    const res = await apiFetch('/productos/');
+    if (!res.ok) throw new Error('Error cargando productos');
+    productosCache = await res.json();
+    filtrarProductos();
+    llenarSelectProductos();
+  } catch (ex) { console.error(ex); }
+}
+
+function filtrarProductos() {
+  const campo = $('filtro-campo')?.value || 'todos';
+  const texto = ($('filtro-texto')?.value || '').toLowerCase().trim();
+  const estado = document.querySelector('input[name="filtro-estado"]:checked')?.value || 'activos';
+
+  filtroProductos = { campo, texto, estado };
+
+  let lista = productosCache.slice();
+  if (estado === 'activos') lista = lista.filter(p => p.activo == 1);
+  else if (estado === 'eliminados') lista = lista.filter(p => p.activo != 1);
+
+  if (texto) {
+    lista = lista.filter(p => {
+      const campos = {
+        todos: [p.nombre, p.sku, p.descripcion, p.categoria?.nombre, p.proveedor?.nombre],
+        nombre: [p.nombre],
+        sku: [p.sku],
+        descripcion: [p.descripcion],
+        proveedor: [p.proveedor?.nombre],
+        categoria: [p.categoria?.nombre]
+      };
+      const arr = campos[campo] || campos.todos;
+      return arr.some(v => v && String(v).toLowerCase().includes(texto));
+    });
+  }
+  renderProductos(lista);
+}
+
+function renderProductos(lista) {
+  const cont = $('lista-productos');
+  if (!cont) return;
+  if (!lista.length) {
+    cont.innerHTML = '<p class="vacio">No hay productos</p>';
+    return;
+  }
+  cont.innerHTML = lista.map(p => {
+    const eliminado = p.activo != 1;
+    return `
+    <div class="producto-card ${eliminado ? 'eliminado' : ''}">
+      <h3>${esc(p.nombre)}</h3>
+      <p class="sku">SKU: ${esc(p.sku)}</p>
+      <p>${esc(p.descripcion || '')}</p>
+      <p><strong>Precio:</strong> ${fmt(p.precio_venta)}</p>
+      <p><strong>Stock:</strong> ${p.stock_actual}</p>
+      <p><strong>Categoría:</strong> ${esc(p.categoria?.nombre || '-')}</p>
+      <p><strong>Proveedor:</strong> ${esc(p.proveedor?.nombre || '-')}</p>
+      <div class="acciones">
+        ${eliminado
+          ? `<button class="btn-reactivar" onclick="reactivarProducto(${p.id})">Reactivar</button>`
+          : `<button class="btn-eliminar" onclick="eliminarProducto(${p.id})">Eliminar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function eliminarProducto(id) {
+  if (!confirm('¿Eliminar producto?')) return;
+  try {
+    const res = await apiFetch(`/productos/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Error al eliminar');
+    await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+async function reactivarProducto(id) {
+  try {
+    const res = await apiFetch(`/productos/${id}/reactivar`, { method: 'POST' });
+    if (!res.ok) throw new Error('Error al reactivar');
+    await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- CREAR PRODUCTO ---------- */
+async function crearProducto(e) {
+  e.preventDefault();
+  const data = {
+    nombre: $('np-nombre').value.trim(),
+    sku: $('np-sku').value.trim(),
+    descripcion: $('np-descripcion').value.trim(),
+    precio_costo: parseFloat($('np-costo').value || 0),
+    precio_venta: parseFloat($('np-venta').value || 0),
+    stock_actual: parseInt($('np-stock').value || 0),
+    stock_minimo: parseInt($('np-min').value || 5),
+    stock_maximo: parseInt($('np-max').value || 100),
+    categoria_id: $('np-categoria').value ? parseInt($('np-categoria').value) : null,
+    proveedor_id: $('np-proveedor').value ? parseInt($('np-proveedor').value) : null
+  };
+  const msg = $('np-msg');
+  try {
+    const res = await apiFetch('/productos/', { method: 'POST', body: JSON.stringify(data) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || 'Error al crear');
+    }
+    if (msg) { msg.textContent = '✅ Producto creado'; msg.className = 'ok'; }
+    e.target.reset();
+    await cargarProductos();
+  } catch (ex) {
+    if (msg) { msg.textContent = '❌ ' + ex.message; msg.className = 'err'; }
+  }
+}
+
+function llenarSelectProductos() {
+  const sel = $('venta-producto');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Seleccionar producto...</option>' +
+    productosCache.filter(p => p.activo == 1 && p.stock_actual > 0)
+      .map(p => `<option value="${p.id}">${esc(p.nombre)} — ${fmt(p.precio_venta)} (stock: ${p.stock_actual})</option>`)
+      .join('');
+}
+
+/* ---------- CATEGORÍAS ---------- */
+async function cargarCategorias() {
+  try {
+    const res = await apiFetch('/categorias/');
+    if (!res.ok) return;
+    categoriasCache = await res.json();
+    const sel = $('np-categoria');
+    if (sel) {
+      sel.innerHTML = '<option value="">Sin categoría</option>' +
+        categoriasCache.map(c => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
+    }
+    renderCategorias();
+  } catch (ex) { console.error(ex); }
+}
+
+function renderCategorias() {
+  const cont = $('lista-categorias');
+  if (!cont) return;
+  if (!categoriasCache.length) {
+    cont.innerHTML = '<p class="vacio">No hay categorías</p>';
+    return;
+  }
+  cont.innerHTML = categoriasCache.map(c => `
+    <div class="categoria-card">
+      <h4>${esc(c.nombre)}</h4>
+      <p>${esc(c.descripcion || '')}</p>
+      <button class="btn-eliminar" onclick="eliminarCategoria(${c.id})">Eliminar</button>
+    </div>
+  `).join('');
+}
+
+async function crearCategoria(e) {
+  e.preventDefault();
+  const nombre = $('cat-nombre').value.trim();
+  const descripcion = $('cat-descripcion').value.trim();
+  const msg = $('cat-msg');
+  try {
+    const res = await apiFetch('/categorias/', {
+      method: 'POST',
+      body: JSON.stringify({ nombre, descripcion })
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || 'Error');
+    }
+    if (msg) { msg.textContent = '✅ Creada'; msg.className = 'ok'; }
+    e.target.reset();
+    await cargarCategorias();
+  } catch (ex) {
+    if (msg) { msg.textContent = '❌ ' + ex.message; msg.className = 'err'; }
+  }
+}
+
+async function eliminarCategoria(id) {
+  if (!confirm('¿Eliminar categoría?')) return;
+  try {
+    const res = await apiFetch(`/categorias/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Error al eliminar');
+    await cargarCategorias();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- PROVEEDORES ---------- */
+async function cargarProveedores() {
+  try {
+    const res = await apiFetch('/proveedores/');
+    if (!res.ok) return;
+    proveedoresCache = await res.json();
+    const sel = $('np-proveedor');
+    if (sel) {
+      sel.innerHTML = '<option value="">Sin proveedor</option>' +
+        proveedoresCache.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+    }
+  } catch (ex) { /* endpoint puede no existir aún */ }
+}
+
+/* ---------- VENTAS ---------- */
+function agregarAlCarrito() {
+  const sel = $('venta-producto');
+  const cant = parseInt($('venta-cantidad').value || 1);
+  const prodId = parseInt(sel.value);
+  if (!prodId) return alert('Selecciona un producto');
+  const p = productosCache.find(x => x.id === prodId);
+  if (!p) return;
+
+  const existente = carritoVenta.find(i => i.producto_id === prodId);
+  if (existente) existente.cantidad += cant;
+  else carritoVenta.push({
+    producto_id: prodId,
+    nombre: p.nombre,
+    precio_unitario: Number(p.precio_venta),
+    cantidad: cant
+  });
+  renderCarrito();
+}
+
+function renderCarrito() {
+  const cont = $('carrito-lista');
+  if (!cont) return;
+  if (!carritoVenta.length) {
+    cont.innerHTML = '<p class="vacio">Carrito vacío</p>';
+    if ($('carrito-subtotal')) $('carrito-subtotal').textContent = '0';
+    if ($('carrito-iva')) $('carrito-iva').textContent = '0';
+    if ($('carrito-total')) $('carrito-total').textContent = '0';
+    return;
+  }
+  let subtotal = 0;
+  cont.innerHTML = carritoVenta.map((i, idx) => {
+    const st = i.precio_unitario * i.cantidad;
+    subtotal += st;
+    return `<div class="carrito-item">
+      <span>${esc(i.nombre)}</span>
+      <span>x${i.cantidad}</span>
+      <span>${fmt(st)}</span>
+      <button onclick="quitarDelCarrito(${idx})">✕</button>
+    </div>`;
+  }).join('');
+  const iva = subtotal * 0.22;
+  const total = subtotal + iva;
+  if ($('carrito-subtotal')) $('carrito-subtotal').textContent = fmt(subtotal);
+  if ($('carrito-iva')) $('carrito-iva').textContent = fmt(iva);
+  if ($('carrito-total')) $('carrito-total').textContent = fmt(total);
+}
+
+function quitarDelCarrito(idx) {
+  carritoVenta.splice(idx, 1);
+  renderCarrito();
+}
+
+async function confirmarVenta() {
+  if (!carritoVenta.length) return alert('Carrito vacío');
+  const payload = {
+    items: carritoVenta.map(i => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
+    cliente_nombre: $('venta-cliente')?.value || null,
+    cliente_telefono: $('venta-telefono')?.value || null
+  };
+  try {
+    const res = await apiFetch('/ventas/', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || 'Error al crear venta');
+    }
+    alert('✅ Venta registrada');
+    carritoVenta = [];
+    renderCarrito();
+    if ($('venta-cliente')) $('venta-cliente').value = '';
+    if ($('venta-telefono')) $('venta-telefono').value = '';
+    await cargarProductos();
+    await cargarVentas();
+  } catch (ex) { alert('❌ ' + ex.message); }
+}
+
+async function cargarVentas() {
+  try {
+    const res = await apiFetch('/ventas/');
+    if (!res.ok) return;
+    const ventas = await res.json();
+    const cont = $('lista-ventas');
+    if (!cont) return;
+    if (!ventas.length) {
+      cont.innerHTML = '<p class="vacio">No hay ventas</p>';
+      return;
+    }
+    cont.innerHTML = ventas.map(v => `
+      <div class="venta-card">
+        <p><strong>${esc(v.numero_factura)}</strong></p>
+        <p>Fecha: ${esc(v.fecha)}</p>
+        <p>Cliente: ${esc(v.cliente_nombre || '-')}</p>
+        <p>Total: ${fmt(v.total)}</p>
+        <p>Estado: ${esc(v.estado)}</p>
+        <button onclick="verDetalleVenta(${v.id})">Ver detalle</button>
+        ${v.estado === 'completada' ? `<button class="btn-eliminar" onclick="anularVenta(${v.id})">Anular</button>` : ''}
+      </div>
+    `).join('');
+  } catch (ex) { console.error(ex); }
+}
+
+async function verDetalleVenta(id) {
+  try {
+    const res = await apiFetch(`/ventas/${id}`);
+    if (!res.ok) throw new Error('No se pudo cargar');
+    const v = await res.json();
+    const items = v.items || v.items_venta || [];
+    const txt = items.map(i =>
+      `• ${i.producto?.nombre || 'Producto ' + i.producto_id} x${i.cantidad} = ${fmt(i.subtotal)}`
+    ).join('\n');
+    alert(`Factura: ${v.numero_factura}\nCliente: ${v.cliente_nombre || '-'}\n\n${txt}\n\nSubtotal: ${fmt(v.subtotal)}\nIVA: ${fmt(v.iva)}\nTotal: ${fmt(v.total)}`);
+  } catch (ex) { alert(ex.message); }
+}
+
+async function anularVenta(id) {
+  if (!confirm('¿Anular venta? Se devolverá el stock.')) return;
+  try {
+    const res = await apiFetch(`/ventas/${id}/anular`, { method: 'POST' });
+    if (!res.ok) throw new Error('Error al anular');
+    await cargarVentas();
+    await cargarProductos();
+  } catch (ex) { alert(ex.message); }
+}
+
+/* ---------- REPORTES ---------- */
+async function cargarReportes() {
+  try {
+    const [r1, r2, r3, r4] = await Promise.all([
+      apiFetch('/reportes/resumen').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/productos-mas-vendidos').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/ganancias').then(r => r.ok ? r.json() : null),
+      apiFetch('/reportes/stock-bajo').then(r => r.ok ? r.json() : null)
+    ]);
+    renderResumen(r1);
+    renderMasVendidos(r2);
+    renderGanancias(r3);
+    renderStockBajo(r4);
+  } catch (ex) { console.error(ex); }
+}
+
+function renderResumen(d) {
+  const cont = $('rep-resumen');
+  if (!cont || !d) return;
+  cont.innerHTML = `
+    <div class="kpi"><h3>${fmt(d.total_ventas || d.ventas || 0)}</h3><p>Ventas</p></div>
+    <div class="kpi"><h3>${fmt(d.ingresos || d.total_ingresos || 0)}</h3><p>Ingresos</p></div>
+    <div class="kpi"><h3>${fmt(d.productos || d.total_productos || 0)}</h3><p>Productos</p></div>
+    <div class="kpi"><h3>${fmt(d.clientes || 0)}</h3><p>Clientes</p></div>
+  `;
+}
+
+function renderMasVendidos(d) {
+  const cont = $('rep-mas-vendidos');
+  if (!cont || !d) return;
+  const arr = Array.isArray(d) ? d : (d.productos || []);
+  if (!arr.length) { cont.innerHTML = '<p class="vacio">Sin datos</p>'; return; }
+  cont.innerHTML = arr.map(p => `
+    <div class="reporte-item">
+      <span>${esc(p.nombre || p.producto)}</span>
+      <span>${p.total_vendido || p.cantidad || 0} vendidos</span>
+    </div>
+  `).join('');
+}
+
+function renderGanancias(d) {
+  const cont = $('rep-ganancias');
+  if (!cont || !d) return;
+  const arr = Array.isArray(d) ? d : (d.periodos || []);
+  if (!arr.length) { cont.innerHTML = '<p class="vacio">Sin datos</p>'; return; }
+  cont.innerHTML = arr.map(g => `
+    <div class="reporte-item">
+      <span>${esc(g.periodo)}</span>
+      <span>${fmt(g.ingresos)} (${g.cantidad_ventas} ventas)</span>
+    </div>
+  `).join('');
+}
+
+function renderStockBajo(d) {
+  const cont = $('rep-stock-bajo');
+  if (!cont || !d) return;
+  const arr = Array.isArray(d) ? d : (d.productos || []);
+  if (!arr.length) { cont.innerHTML = '<p class="vacio">Todo OK 👍</p>'; return; }
+  cont.innerHTML = arr.map(p => `
+    <div class="reporte-item alerta">
+      <span>${esc(p.nombre)}</span>
+      <span>Stock: ${p.stock_actual} / min ${p.stock_minimo}</span>
+    </div>
+  `).join('');
+}
+
+/* ---------- INIT ---------- */
+function initApp() {
+  console.log('🚀 initApp()');
+
+  const token = localStorage.getItem('token');
+  if (token) {
+    mostrarVista('app');
+    Promise.all([cargarCategorias(), cargarProveedores()])
+      .then(() => cargarProductos())
+      .then(() => mostrarTab('productos'))
+      .catch(() => mostrarVista('login'));
+  } else {
+    mostrarVista('login');
+  }
+
+  const loginForm = $('login-form');
+  if (loginForm) {
+    console.log('   ✅ login-form encontrado, attach submit');
+    loginForm.addEventListener('submit', hacerLogin);
+  } else {
+    console.warn('   ⚠️ No hay <form id="login-form">, busco botón');
+    const btn = $('btn-login') || document.querySelector('button[type="submit"]');
+    if (btn) {
+      console.log('   ✅ botón de login encontrado');
+      btn.addEventListener('click', hacerLogin);
+    } else {
+      console.error('   ❌ No encuentro ni form ni botón de login');
+    }
+  }
+
+  document.querySelectorAll('.btn-logout').forEach(b => b.addEventListener('click', cerrarSesion));
+
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.addEventListener('click', () => mostrarTab(b.dataset.tab));
+  });
+
+  if ($('filtro-campo')) $('filtro-campo').addEventListener('change', filtrarProductos);
+  if ($('filtro-texto')) $('filtro-texto').addEventListener('input', filtrarProductos);
+  document.querySelectorAll('input[name="filtro-estado"]').forEach(r =>
+    r.addEventListener('change', filtrarProductos));
+
+  const npForm = $('form-nuevo-producto');
+  if (npForm) npForm.addEventListener('submit', crearProducto);
+
+  const catForm = $('form-categoria');
+  if (catForm) catForm.addEventListener('submit', crearCategoria);
+
+  if ($('btn-agregar-carrito')) $('btn-agregar-carrito').addEventListener('click', agregarAlCarrito);
+  if ($('btn-confirmar-venta')) $('btn-confirmar-venta').addEventListener('click', confirmarVenta);
+}
+
+/* ---------- Exponer globalmente ---------- */
+window.hacerLogin = hacerLogin;
+window.cerrarSesion = cerrarSesion;
+window.mostrarTab = mostrarTab;
+window.eliminarProducto = eliminarProducto;
+window.reactivarProducto = reactivarProducto;
+window.eliminarCategoria = eliminarCategoria;
+window.quitarDelCarrito = quitarDelCarrito;
+window.verDetalleVenta = verDetalleVenta;
+window.anularVenta = anularVenta;
+
+/* ---------- Arrancar ---------- */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
