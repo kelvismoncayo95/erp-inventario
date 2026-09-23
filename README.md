@@ -131,4 +131,4 @@ MIT - libre para usar, modificar y aprender.
 
 ## 👤 Autor
 
-Kelvis Moncayo - Proyecto de portafolio para Workana, 2026.
+Kelvis Moncayo - 2026.
