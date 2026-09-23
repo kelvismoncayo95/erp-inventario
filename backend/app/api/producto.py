@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models.producto import Producto
@@ -139,7 +139,7 @@ def eliminar_producto(
         raise HTTPException(400, f"El producto '{producto.nombre}' ya estaba eliminado")
     producto.activo = 0
     producto.eliminado_por = usuario.id
-    producto.fecha_eliminacion = datetime.utcnow()
+    producto.fecha_eliminacion = datetime.now(timezone.utc)
     db.commit()
     return {
         "mensaje": f"Producto '{producto.nombre}' eliminado correctamente",
@@ -164,7 +164,7 @@ def reactivar_producto(
     producto.activo = 1
     producto.stock_actual = datos.stock_inicial
     producto.reactivado_por = usuario.id
-    producto.fecha_reactivacion = datetime.utcnow()
+    producto.fecha_reactivacion = datetime.now(timezone.utc)
     db.commit()
     db.refresh(producto)
     return producto

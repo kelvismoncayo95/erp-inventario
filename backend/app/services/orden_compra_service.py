@@ -5,7 +5,7 @@ Lógica transaccional para compras y entrada de stock.
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.producto import Producto
 from app.models.orden_compra import OrdenCompra

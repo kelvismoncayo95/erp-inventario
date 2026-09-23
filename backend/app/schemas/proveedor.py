@@ -1,7 +1,7 @@
 """Schemas de Proveedor."""
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ProveedorBase(BaseModel):

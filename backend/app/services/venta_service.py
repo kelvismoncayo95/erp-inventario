@@ -2,10 +2,12 @@
 Servicio de Ventas.
 Lógica transaccional de ventas y anulaciones.
 """
+import os
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
 
 from app.models.producto import Producto
 from app.models.venta import Venta
@@ -13,9 +15,12 @@ from app.models.item_venta import ItemVenta
 
 
 # ============================================
-# CONSTANTES
+# CONFIGURACIÓN (desde .env)
 # ============================================
-MINUTOS_ANULACION_VENDEDOR = 5
+load_dotenv()
+
+MINUTOS_ANULACION_VENDEDOR = int(os.getenv("MINUTOS_ANULACION_VENDEDOR", "5"))
+IVA_PORCENTAJE = Decimal(os.getenv("IVA_PORCENTAJE", "22")) / Decimal("100")
 
 
 # ============================================
@@ -72,7 +77,7 @@ class VentaService:
                     "subtotal": subtotal,
                 })
 
-            iva = subtotal_total * Decimal("0.22")
+            iva = subtotal_total * IVA_PORCENTAJE
             total = subtotal_total + iva
 
             venta = Venta(
@@ -133,7 +138,7 @@ class VentaService:
                         "Solo puedes anular ventas que tú mismo hayas realizado."
                     )
                 # Solo dentro de los 5 minutos
-                ahora = datetime.utcnow()
+                ahora = datetime.now(timezone.utc)
                 minutos = (ahora - venta.fecha).total_seconds() / 60
                 if minutos > MINUTOS_ANULACION_VENDEDOR:
                     raise PermisoDenegadoError(
