@@ -14,7 +14,7 @@ class Usuario(Base):
     password_hash = Column(String(255), nullable=False)
     rol = Column(String(20), default="vendedor")  # admin, encargado, vendedor
     activo = Column(Integer, default=1)
-    creado_en = Column(DateTime, default=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Relaciones
     ventas = relationship("Venta", back_populates="usuario")

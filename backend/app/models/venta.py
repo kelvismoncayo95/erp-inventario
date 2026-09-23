@@ -10,7 +10,7 @@ class Venta(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     numero_factura = Column(String(20), unique=True)
-    fecha = Column(DateTime, default=datetime.utcnow)
+    fecha = Column(DateTime, default=datetime.now(timezone.utc))
     subtotal = Column(Numeric(10, 2), nullable=False)
     iva = Column(Numeric(10, 2), default=0)
     total = Column(Numeric(10, 2), nullable=False)
@@ -22,7 +22,7 @@ class Venta(Base):
 
     # Auditoría
     creado_por = Column(Integer, ForeignKey("usuarios.id"))
-    creado_en = Column(DateTime, default=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Relaciones
     usuario = relationship("Usuario", back_populates="ventas")

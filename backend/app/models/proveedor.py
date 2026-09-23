@@ -15,7 +15,7 @@ class Proveedor(Base):
     email = Column(String(100))
     direccion = Column(String(255))
     contacto = Column(String(100))
-    creado_en = Column(DateTime, default=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Relaciones
     productos = relationship("Producto", back_populates="proveedor")

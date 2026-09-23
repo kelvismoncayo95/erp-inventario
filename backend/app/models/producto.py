@@ -17,8 +17,8 @@ class Producto(Base):
     stock_minimo = Column(Integer, default=5)
     stock_maximo = Column(Integer, default=100)
     activo = Column(Integer, default=1)
-    creado_en = Column(DateTime, default=datetime.utcnow)
-    actualizado_en = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
+    actualizado_en = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     categoria_id = Column(Integer, ForeignKey("categorias.id"))
     proveedor_id = Column(Integer, ForeignKey("proveedores.id"))
     # Auditoría de eliminación / reactivación

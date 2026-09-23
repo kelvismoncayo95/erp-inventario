@@ -11,7 +11,7 @@ class Categoria(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False, unique=True)
     descripcion = Column(String(255))
-    creado_en = Column(DateTime, default=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Relaciones
     productos = relationship("Producto", back_populates="categoria")

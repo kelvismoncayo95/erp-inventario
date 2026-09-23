@@ -10,14 +10,14 @@ class OrdenCompra(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     numero_orden = Column(String(20), unique=True)
-    fecha = Column(DateTime, default=datetime.utcnow)
+    fecha = Column(DateTime, default=datetime.now(timezone.utc))
     fecha_entrega_esperada = Column(DateTime)
     total = Column(Numeric(10, 2), nullable=False)
     estado = Column(String(20), default="pendiente")  # pendiente, recibida, cancelada
 
     proveedor_id = Column(Integer, ForeignKey("proveedores.id"))
     creado_por = Column(Integer, ForeignKey("usuarios.id"))
-    creado_en = Column(DateTime, default=datetime.utcnow)
+    creado_en = Column(DateTime, default=datetime.now(timezone.utc))
 
     # Relaciones
     proveedor = relationship("Proveedor", back_populates="ordenes_compra")
